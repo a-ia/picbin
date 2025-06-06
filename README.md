@@ -6,6 +6,7 @@ picbin is a lightweight app designed to simplify photo management.
 Quickly preview, organize, and delete unwanted photos with ease.
 
 **Preview**
+![image](https://github.com/user-attachments/assets/ff28b375-503a-4f7a-bdc7-e88e5e434ffe)
 
 
 **Features:**
