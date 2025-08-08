@@ -1,5 +1,6 @@
 import dearpygui.dearpygui as dpg
 from PIL import Image
+from duplicate import Duplicate
 import os
 import time
 import random
@@ -16,7 +17,8 @@ class PicbinViewer:
         self.size_text_id = None
         self.current_filter = "All Images"
         self.sort_ascending = True
-
+        self.duplicate = Duplicate()
+        
     def launch(self):
         dpg.create_context()
         dpg.create_viewport(title="picbin", width=250, height=720)
@@ -32,7 +34,9 @@ class PicbinViewer:
                 dpg.add_button(label="Shuffle ~", callback=self.shuffle_images)
                 dpg.add_button(label="Reorder", callback=self.reorder_images)
                 dpg.add_button(label="Date Directory", callback=self.show_date_picker)
-            
+                dpg.add_button(label="Find Dupes", callback=self.find_duplicates)
+                dpg.add_button(label="Clean Dupes", callback=self.clean_duplicates)            
+                
             dpg.add_spacer(height=10)
             self.path_text_id = dpg.add_text("", tag="PathText", wrap=800)
             self.size_text_id = dpg.add_text("", tag="SizeText", wrap=800)
@@ -299,3 +303,58 @@ class PicbinViewer:
             return f"{int(size)} {size_units[unit_index]}"
         else:
             return f"{size:.1f} {size_units[unit_index]}"
+
+    def find_duplicates(self, *args):
+        """Find and mark duplicates"""
+        if not self.image_paths:
+            return
+        
+        print("Analyzing duplicates...")
+        dpg.set_value(self.header_text_id, "Finding duplicates...")
+        
+        # Find duplicates
+        exact_dupes = self.duplicate.find_exact_duplicates(self.image_paths)
+        similar_groups = self.duplicate.find_similar_images(self.image_paths)
+        
+        # Get suggestions
+        self.suggested_deletions = self.duplicate.get_deletion_suggestions(exact_dupes, similar_groups)
+        
+        print(f"Found {len(exact_dupes)} exact duplicate groups")
+        print(f"Found {len(similar_groups)} similar image groups") 
+        print(f"Suggested {len(self.suggested_deletions)} files for deletion")
+        
+        # Filter to show only suggested deletions
+        if self.suggested_deletions:
+            self.image_paths = [p for p in self.image_paths if p in self.suggested_deletions]
+            self.current_filter = f"Duplicates ({len(self.image_paths)})"
+            self.index = 0
+            self.show_image()
+
+    def clean_duplicates(self, *args):
+        """Delete all suggested duplicates"""
+        if not hasattr(self, 'suggested_deletions') or not self.suggested_deletions:
+            print("No duplicates found. Run 'Find Dupes' first.")
+            return
+        
+        deleted = 0
+        for path in self.suggested_deletions[:]:  # Copy list
+            try:
+                os.remove(path)
+                deleted += 1
+                if path in self.image_paths:
+                    self.image_paths.remove(path)
+                if path in self.all_image_paths:
+                    self.all_image_paths.remove(path)
+            except Exception as e:
+                print(f"Failed to delete {path}: {e}")
+        
+        print(f"Deleted {deleted} duplicate files")
+        
+        # Reset to all images
+        self.image_paths = self.all_image_paths.copy()
+        self.current_filter = "All Images"
+        self.index = 0
+        if self.image_paths:
+            self.show_image()
+        else:
+            dpg.set_value(self.header_text_id, "No images remaining")
